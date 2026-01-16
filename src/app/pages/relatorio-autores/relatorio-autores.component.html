@@ -1,0 +1,36 @@
+<div class="container">
+    <app-alert 
+        [tipo]="alertaTipo" 
+        [mensagem]="alertaMensagem" 
+        [mostrar]="alertaMostrar"
+        [fechavel]="true"
+        (fecharEvent)="alertaMostrar = false">
+    </app-alert>
+    
+    <div class="page-header">
+        <h1>Relatório de Autores</h1>
+    </div>
+
+    <div class="form-section">
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
+            <div class="text-center">
+                <p class="mb-4" style="font-size: 16px; color: #666;">
+                    Clique no botão abaixo para gerar e baixar o relatório de Autores e Livros em PDF.
+                </p>
+                <button 
+                    class="btn-primary" 
+                    (click)="gerarRelatorio()"
+                    [disabled]="gerandoRelatorio">
+                    @if (gerandoRelatorio) {
+                        <i class="bi bi-arrow-repeat spinning me-2"></i>
+                        Gerando relatório...
+                    } @else {
+                        <i class="bi bi-file-earmark-pdf me-2"></i>
+                        Gerar Relatório PDF
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
