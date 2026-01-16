@@ -4,7 +4,6 @@ export interface FormaCompraResponse {
 }
 
 export interface CriarFormaCompraRequest {
-  codigo: number;
   descricao: string;
 }
 

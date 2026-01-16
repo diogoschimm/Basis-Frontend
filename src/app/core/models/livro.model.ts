@@ -14,7 +14,6 @@ export interface LivroResponse {
 }
 
 export interface CriarLivroRequest {
-  codigo: number;
   titulo: string;
   editora: string;
   edicao: number;

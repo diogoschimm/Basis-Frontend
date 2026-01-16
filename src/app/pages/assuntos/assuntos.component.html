@@ -1,4 +1,11 @@
 <div class="container">
+  <app-alert 
+    [tipo]="alertaTipo" 
+    [mensagem]="alertaMensagem" 
+    [mostrar]="alertaMostrar"
+    [fechavel]="true"
+    (fecharEvent)="alertaMostrar = false">
+  </app-alert>
   <div class="page-header">
     <h1>Assuntos</h1>
     <button class="btn-primary" (click)="abrirModalNovo()">
@@ -66,18 +73,19 @@
     <div class="modal-content" (click)="$event.stopPropagation()">
       <h2>{{ editando ? 'Editar' : 'Novo' }} Assunto</h2>
       <form (ngSubmit)="salvar()">
+        @if (editando) {
         <div class="form-group">
           <label for="codigo">Código</label>
           <input 
             type="number" 
             id="codigo" 
-            [(ngModel)]="assuntoForm.codigo" 
+            [(ngModel)]="assuntoCodigo" 
             name="codigo"
-            [disabled]="editando"
-            required
-            min="1"
+            [disabled]="true"
+            class="form-control"
           />
         </div>
+        }
         <div class="form-group">
           <label for="descricao">Descrição</label>
           <input 

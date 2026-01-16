@@ -4,7 +4,6 @@ export interface AutorResponse {
 }
 
 export interface CriarAutorRequest {
-  codigo: number;
   nome: string;
 }
 

@@ -1,23 +1,25 @@
 import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LivrosService, AutoresService, AssuntosService, FormasCompraService } from '../../core/services';
-import { 
-  LivroResponse, 
-  CriarLivroRequest, 
+import { HttpErrorResponse } from '@angular/common/http';
+import { LivrosService, AutoresService, AssuntosService, FormasCompraService, ErrorHandlerService } from '../../core/services';
+import {
+  LivroResponse,
+  CriarLivroRequest,
   AtualizarLivroRequest,
   AutorResponse,
   AssuntoResponse,
   FormaCompraResponse,
   FormaCompraItemRequest
 } from '../../core/models';
-import { ConfirmModalComponent } from '../../shared/components';
+import { ConfirmModalComponent, AlertComponent } from '../../shared/components';
+import { formatarMoedaBrasil, formatarInputDinheiro, removerMascaraDinheiro } from '../../core/utils';
 import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-livros',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmModalComponent],
+  imports: [CommonModule, FormsModule, ConfirmModalComponent, AlertComponent],
   templateUrl: './livros.component.html'
 })
 export class LivrosComponent implements OnInit {
@@ -25,7 +27,11 @@ export class LivrosComponent implements OnInit {
   private autoresService = inject(AutoresService);
   private assuntosService = inject(AssuntosService);
   private formasCompraService = inject(FormasCompraService);
+  private errorHandler = inject(ErrorHandlerService);
   private cdr = inject(ChangeDetectorRef);
+
+  // Expor função de formatação para o template
+  formatarMoeda = formatarMoedaBrasil;
 
   livros: LivroResponse[] | null = null;
   totalCount = 0;
@@ -38,8 +44,8 @@ export class LivrosComponent implements OnInit {
   formularioAberto = false;
   editando = false;
   abaAtiva = 'principal';
+  livroCodigo: number = 0; // Código do livro (usado apenas para edição)
   livroForm: CriarLivroRequest = {
-    codigo: 0,
     titulo: '',
     editora: '',
     edicao: 1,
@@ -53,16 +59,17 @@ export class LivrosComponent implements OnInit {
   todosAutores: AutorResponse[] = [];
   todosAssuntos: AssuntoResponse[] = [];
   todasFormasCompra: FormaCompraResponse[] = [];
-  
+
   // Listas de itens adicionados (para exibição)
   assuntosAdicionados: AssuntoResponse[] = [];
   autoresAdicionados: AutorResponse[] = [];
   formasCompraAdicionadas: Array<{ formaCompraCodigo: number; valorCompra: number; descricao: string }> = [];
-  
+
   // Forma de compra temporária
   formaCompraSelecionada: number | null = null;
   valorCompra: number = 0;
-  
+  valorCompraFormatado: string = '';
+
   // Seleções temporárias
   autorSelecionadoTemp: number | null = null;
   assuntoSelecionadoTemp: number | null = null;
@@ -70,6 +77,11 @@ export class LivrosComponent implements OnInit {
   // Modal de confirmação
   confirmModalAberto = false;
   codigoParaExcluir: number | null = null;
+
+  // Alertas
+  alertaMensagem: string = '';
+  alertaMostrar: boolean = false;
+  alertaTipo: 'success' | 'error' | 'warning' | 'info' = 'error';
 
   ngOnInit(): void {
     this.carregarLivros();
@@ -90,8 +102,8 @@ export class LivrosComponent implements OnInit {
           this.totalCount = result.totalCount || 0;
           this.totalPages = result.totalPages || 0;
         },
-        error: (err) => {
-          console.error('Erro ao carregar livros:', err);
+        error: (err: HttpErrorResponse) => {
+          this.mostrarErro(err);
         }
       });
   }
@@ -99,8 +111,8 @@ export class LivrosComponent implements OnInit {
   abrirFormularioNovo(): void {
     this.editando = false;
     this.abaAtiva = 'principal';
+    this.livroCodigo = 0;
     this.livroForm = {
-      codigo: 0,
       titulo: '',
       editora: '',
       edicao: 1,
@@ -114,6 +126,7 @@ export class LivrosComponent implements OnInit {
     this.formasCompraAdicionadas = [];
     this.formaCompraSelecionada = null;
     this.valorCompra = 0;
+    this.valorCompraFormatado = '';
     this.autorSelecionadoTemp = null;
     this.assuntoSelecionadoTemp = null;
     this.carregarListas();
@@ -123,8 +136,8 @@ export class LivrosComponent implements OnInit {
   abrirFormularioEditar(livro: LivroResponse): void {
     this.editando = true;
     this.abaAtiva = 'principal';
+    this.livroCodigo = livro.codigo;
     this.livroForm = {
-      codigo: livro.codigo,
       titulo: livro.titulo || '',
       editora: livro.editora || '',
       edicao: livro.edicao,
@@ -138,9 +151,10 @@ export class LivrosComponent implements OnInit {
     this.formasCompraAdicionadas = [];
     this.formaCompraSelecionada = null;
     this.valorCompra = 0;
+    this.valorCompraFormatado = '';
     this.autorSelecionadoTemp = null;
     this.assuntoSelecionadoTemp = null;
-    
+
     this.carregarListas();
     this.carregarDadosLivro(livro.codigo);
     this.formularioAberto = true;
@@ -154,13 +168,13 @@ export class LivrosComponent implements OnInit {
           this.autoresAdicionados = [...livroCompleto.autores];
           this.livroForm.autoresCodigos = livroCompleto.autores.map(a => a.codigo);
         }
-        
+
         // Carregar assuntos
         if (livroCompleto.assuntos && livroCompleto.assuntos.length > 0) {
           this.assuntosAdicionados = [...livroCompleto.assuntos];
           this.livroForm.assuntosCodigos = livroCompleto.assuntos.map(a => a.codigo);
         }
-        
+
         // Carregar formas de compra
         if (livroCompleto.formasCompra && livroCompleto.formasCompra.length > 0) {
           this.formasCompraAdicionadas = livroCompleto.formasCompra.map(fc => ({
@@ -174,7 +188,7 @@ export class LivrosComponent implements OnInit {
           }));
         }
       },
-      error: (err) => console.error('Erro ao carregar dados do livro:', err)
+      error: (err: HttpErrorResponse) => this.mostrarErro(err)
     });
   }
 
@@ -228,29 +242,79 @@ export class LivrosComponent implements OnInit {
         // Verificar se já existe na lista de adicionados
         const jaExiste = this.autoresAdicionados.some(a => a.codigo === autor.codigo);
         if (!jaExiste) {
-          this.autoresAdicionados.push(autor);
-          // Sincronizar com livroForm.autoresCodigos
-          if (!this.livroForm.autoresCodigos) {
-            this.livroForm.autoresCodigos = [];
+          if (this.editando) {
+            // Se estiver editando, chamar API
+            this.livrosService.adicionarAutores(this.livroCodigo, [autor.codigo])
+              .pipe(
+                finalize(() => {
+                  this.cdr.markForCheck();
+                })
+              )
+              .subscribe({
+                next: (livroAtualizado) => {
+                  // Atualizar listas locais
+                  this.autoresAdicionados.push(autor);
+                  if (!this.livroForm.autoresCodigos) {
+                    this.livroForm.autoresCodigos = [];
+                  }
+                  this.livroForm.autoresCodigos.push(autor.codigo);
+                  this.autorSelecionadoTemp = null;
+                  // Recarregar dados do livro para garantir sincronização
+                  this.carregarDadosLivro(this.livroCodigo);
+                },
+                error: (err: HttpErrorResponse) => this.mostrarErro(err)
+              });
+          } else {
+            // Se não estiver editando, apenas atualizar localmente
+            this.autoresAdicionados.push(autor);
+            if (!this.livroForm.autoresCodigos) {
+              this.livroForm.autoresCodigos = [];
+            }
+            this.livroForm.autoresCodigos.push(autor.codigo);
+            this.autorSelecionadoTemp = null;
           }
-          this.livroForm.autoresCodigos.push(autor.codigo);
-          this.autorSelecionadoTemp = null;
         }
       }
     }
   }
 
   removerAutor(codigo: number): void {
-    // Remover da lista de adicionados
-    const index = this.autoresAdicionados.findIndex(a => a.codigo === codigo);
-    if (index > -1) {
-      this.autoresAdicionados.splice(index, 1);
-    }
-    // Remover de livroForm.autoresCodigos
-    if (this.livroForm.autoresCodigos) {
-      const codigoIndex = this.livroForm.autoresCodigos.indexOf(codigo);
-      if (codigoIndex > -1) {
-        this.livroForm.autoresCodigos.splice(codigoIndex, 1);
+    if (this.editando) {
+      // Se estiver editando, chamar API
+      this.livrosService.removerAutores(this.livroCodigo, [codigo]).pipe(
+        finalize(() => {
+          this.cdr.markForCheck();
+        })
+      ).subscribe({
+        next: () => {
+          // Remover da lista de adicionados
+          const index = this.autoresAdicionados.findIndex(a => a.codigo === codigo);
+          if (index > -1) {
+            this.autoresAdicionados.splice(index, 1);
+          }
+          // Remover de livroForm.autoresCodigos
+          if (this.livroForm.autoresCodigos) {
+            const codigoIndex = this.livroForm.autoresCodigos.indexOf(codigo);
+            if (codigoIndex > -1) {
+              this.livroForm.autoresCodigos.splice(codigoIndex, 1);
+            }
+          }
+          // Recarregar dados do livro para garantir sincronização
+          this.carregarDadosLivro(this.livroCodigo);
+        },
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
+      });
+    } else {
+      // Se não estiver editando, apenas atualizar localmente
+      const index = this.autoresAdicionados.findIndex(a => a.codigo === codigo);
+      if (index > -1) {
+        this.autoresAdicionados.splice(index, 1);
+      }
+      if (this.livroForm.autoresCodigos) {
+        const codigoIndex = this.livroForm.autoresCodigos.indexOf(codigo);
+        if (codigoIndex > -1) {
+          this.livroForm.autoresCodigos.splice(codigoIndex, 1);
+        }
       }
     }
   }
@@ -264,29 +328,77 @@ export class LivrosComponent implements OnInit {
         // Verificar se já existe na lista de adicionados
         const jaExiste = this.assuntosAdicionados.some(a => a.codigo === assunto.codigo);
         if (!jaExiste) {
-          this.assuntosAdicionados.push(assunto);
-          // Sincronizar com livroForm.assuntosCodigos
-          if (!this.livroForm.assuntosCodigos) {
-            this.livroForm.assuntosCodigos = [];
+          if (this.editando) {
+            // Se estiver editando, chamar API
+            this.livrosService.adicionarAssuntos(this.livroCodigo, [assunto.codigo]).pipe(
+              finalize(() => {
+                this.cdr.markForCheck();
+              })
+            ).subscribe({
+              next: () => {
+                // Atualizar listas locais
+                this.assuntosAdicionados.push(assunto);
+                if (!this.livroForm.assuntosCodigos) {
+                  this.livroForm.assuntosCodigos = [];
+                }
+                this.livroForm.assuntosCodigos.push(assunto.codigo);
+                this.assuntoSelecionadoTemp = null;
+                // Recarregar dados do livro para garantir sincronização
+                this.carregarDadosLivro(this.livroCodigo);
+              },
+              error: (err: HttpErrorResponse) => this.mostrarErro(err)
+            });
+          } else {
+            // Se não estiver editando, apenas atualizar localmente
+            this.assuntosAdicionados.push(assunto);
+            if (!this.livroForm.assuntosCodigos) {
+              this.livroForm.assuntosCodigos = [];
+            }
+            this.livroForm.assuntosCodigos.push(assunto.codigo);
+            this.assuntoSelecionadoTemp = null;
           }
-          this.livroForm.assuntosCodigos.push(assunto.codigo);
-          this.assuntoSelecionadoTemp = null;
         }
       }
     }
   }
 
   removerAssunto(codigo: number): void {
-    // Remover da lista de adicionados
-    const index = this.assuntosAdicionados.findIndex(a => a.codigo === codigo);
-    if (index > -1) {
-      this.assuntosAdicionados.splice(index, 1);
-    }
-    // Remover de livroForm.assuntosCodigos
-    if (this.livroForm.assuntosCodigos) {
-      const codigoIndex = this.livroForm.assuntosCodigos.indexOf(codigo);
-      if (codigoIndex > -1) {
-        this.livroForm.assuntosCodigos.splice(codigoIndex, 1);
+    if (this.editando) {
+      // Se estiver editando, chamar API
+      this.livrosService.removerAssuntos(this.livroCodigo, [codigo]).pipe(
+        finalize(() => {
+          this.cdr.markForCheck();
+        })
+      ).subscribe({
+        next: () => {
+          // Remover da lista de adicionados
+          const index = this.assuntosAdicionados.findIndex(a => a.codigo === codigo);
+          if (index > -1) {
+            this.assuntosAdicionados.splice(index, 1);
+          }
+          // Remover de livroForm.assuntosCodigos
+          if (this.livroForm.assuntosCodigos) {
+            const codigoIndex = this.livroForm.assuntosCodigos.indexOf(codigo);
+            if (codigoIndex > -1) {
+              this.livroForm.assuntosCodigos.splice(codigoIndex, 1);
+            }
+          }
+          // Recarregar dados do livro para garantir sincronização
+          this.carregarDadosLivro(this.livroCodigo);
+        },
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
+      });
+    } else {
+      // Se não estiver editando, apenas atualizar localmente
+      const index = this.assuntosAdicionados.findIndex(a => a.codigo === codigo);
+      if (index > -1) {
+        this.assuntosAdicionados.splice(index, 1);
+      }
+      if (this.livroForm.assuntosCodigos) {
+        const codigoIndex = this.livroForm.assuntosCodigos.indexOf(codigo);
+        if (codigoIndex > -1) {
+          this.livroForm.assuntosCodigos.splice(codigoIndex, 1);
+        }
       }
     }
   }
@@ -302,46 +414,111 @@ export class LivrosComponent implements OnInit {
           fc => fc.formaCompraCodigo === codigo
         );
         if (!jaExiste) {
-          this.formasCompraAdicionadas.push({
-            formaCompraCodigo: codigo,
-            valorCompra: this.valorCompra,
-            descricao: formaCompra.descricao || ''
-          });
-          // Sincronizar com livroForm.formasCompra
-          if (!this.livroForm.formasCompra) {
-            this.livroForm.formasCompra = [];
-          }
-          this.livroForm.formasCompra.push({
+          const formaCompraItem: FormaCompraItemRequest = {
             formaCompraCodigo: codigo,
             valorCompra: this.valorCompra
-          });
-          this.formaCompraSelecionada = null;
-          this.valorCompra = 0;
+          };
+
+          if (this.editando) {
+            // Se estiver editando, chamar API
+            this.livrosService.adicionarFormasCompra(this.livroCodigo, [formaCompraItem]).pipe(
+              finalize(() => {
+                this.cdr.markForCheck();
+              })
+            ).subscribe({
+              next: () => {
+                // Atualizar listas locais
+                this.formasCompraAdicionadas.push({
+                  formaCompraCodigo: codigo,
+                  valorCompra: this.valorCompra,
+                  descricao: formaCompra.descricao || ''
+                });
+                if (!this.livroForm.formasCompra) {
+                  this.livroForm.formasCompra = [];
+                }
+                this.livroForm.formasCompra.push(formaCompraItem);
+                this.formaCompraSelecionada = null;
+                this.valorCompra = 0;
+                this.valorCompraFormatado = '';
+                // Recarregar dados do livro para garantir sincronização
+                this.carregarDadosLivro(this.livroCodigo);
+              },
+              error: (err: HttpErrorResponse) => this.mostrarErro(err)
+            });
+          } else {
+            // Se não estiver editando, apenas atualizar localmente
+            this.formasCompraAdicionadas.push({
+              formaCompraCodigo: codigo,
+              valorCompra: this.valorCompra,
+              descricao: formaCompra.descricao || ''
+            });
+            if (!this.livroForm.formasCompra) {
+              this.livroForm.formasCompra = [];
+            }
+            this.livroForm.formasCompra.push(formaCompraItem);
+            this.formaCompraSelecionada = null;
+            this.valorCompra = 0;
+            this.valorCompraFormatado = '';
+          }
         }
       }
     }
   }
 
+  formatarValorCompra(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const valorFormatado = formatarInputDinheiro(input.value);
+    this.valorCompraFormatado = valorFormatado;
+    this.valorCompra = removerMascaraDinheiro(valorFormatado);
+  }
+
   removerFormaCompra(formaCompraCodigo: number): void {
-    // Remover da lista de adicionados
-    const index = this.formasCompraAdicionadas.findIndex(
-      fc => fc.formaCompraCodigo === formaCompraCodigo
-    );
-    if (index > -1) {
-      this.formasCompraAdicionadas.splice(index, 1);
-    }
-    // Remover de livroForm.formasCompra
-    if (this.livroForm.formasCompra) {
-      this.livroForm.formasCompra = this.livroForm.formasCompra.filter(
-        fc => fc.formaCompraCodigo !== formaCompraCodigo
+    if (this.editando) {
+      // Se estiver editando, chamar API
+      this.livrosService.removerFormasCompra(this.livroCodigo, [formaCompraCodigo]).pipe(
+        finalize(() => {
+          this.cdr.markForCheck();
+        })
+      ).subscribe({
+        next: () => {
+          // Remover da lista de adicionados
+          const index = this.formasCompraAdicionadas.findIndex(
+            fc => fc.formaCompraCodigo === formaCompraCodigo
+          );
+          if (index > -1) {
+            this.formasCompraAdicionadas.splice(index, 1);
+          }
+          // Remover de livroForm.formasCompra
+          if (this.livroForm.formasCompra) {
+            this.livroForm.formasCompra = this.livroForm.formasCompra.filter(
+              fc => fc.formaCompraCodigo !== formaCompraCodigo
+            );
+          }
+          // Recarregar dados do livro para garantir sincronização
+          this.carregarDadosLivro(this.livroCodigo);
+        },
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
+      });
+    } else {
+      // Se não estiver editando, apenas atualizar localmente
+      const index = this.formasCompraAdicionadas.findIndex(
+        fc => fc.formaCompraCodigo === formaCompraCodigo
       );
+      if (index > -1) {
+        this.formasCompraAdicionadas.splice(index, 1);
+      }
+      if (this.livroForm.formasCompra) {
+        this.livroForm.formasCompra = this.livroForm.formasCompra.filter(
+          fc => fc.formaCompraCodigo !== formaCompraCodigo
+        );
+      }
     }
   }
 
   salvar(): void {
     if (this.editando) {
       const request: AtualizarLivroRequest = {
-        codigo: this.livroForm.codigo,
+        codigo: this.livroCodigo,
         titulo: this.livroForm.titulo,
         editora: this.livroForm.editora,
         edicao: this.livroForm.edicao,
@@ -349,14 +526,14 @@ export class LivrosComponent implements OnInit {
       };
       this.livrosService.atualizar(request).subscribe({
         next: () => {
+          this.mostrarSucesso('Livro atualizado com sucesso!');
           this.fecharFormulario();
           this.carregarLivros();
         },
-        error: (err) => console.error('Erro ao atualizar:', err)
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
       });
     } else {
       const request: CriarLivroRequest = {
-        codigo: this.livroForm.codigo,
         titulo: this.livroForm.titulo,
         editora: this.livroForm.editora,
         edicao: this.livroForm.edicao,
@@ -367,10 +544,11 @@ export class LivrosComponent implements OnInit {
       };
       this.livrosService.criar(request).subscribe({
         next: () => {
+          this.mostrarSucesso('Livro criado com sucesso!');
           this.fecharFormulario();
           this.carregarLivros();
         },
-        error: (err) => console.error('Erro ao criar:', err)
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
       });
     }
   }
@@ -389,10 +567,11 @@ export class LivrosComponent implements OnInit {
     if (this.codigoParaExcluir !== null) {
       this.livrosService.remover(this.codigoParaExcluir).subscribe({
         next: () => {
+          this.mostrarSucesso('Livro excluído com sucesso!');
           this.fecharConfirmModal();
           this.carregarLivros();
         },
-        error: (err) => console.error('Erro ao excluir:', err)
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
       });
     }
   }
@@ -409,5 +588,40 @@ export class LivrosComponent implements OnInit {
       this.pageNumber++;
       this.carregarLivros();
     }
+  }
+
+  mostrarErro(error: HttpErrorResponse): void {
+    // Resetar estado antes de mostrar novo alerta
+    this.alertaMostrar = false;
+    this.cdr.markForCheck();
+    
+    // Usar setTimeout para garantir que o estado seja atualizado
+    setTimeout(() => {
+      const mensagens = this.errorHandler.extrairMensagensErro(error);
+      this.alertaMensagem = mensagens.join('\n');
+      this.alertaTipo = 'error';
+      this.alertaMostrar = true;
+      this.cdr.markForCheck();
+    }, 0);
+  }
+
+  mostrarSucesso(mensagem: string): void {
+    // Resetar estado antes de mostrar novo alerta
+    this.alertaMostrar = false;
+    this.cdr.markForCheck();
+    
+    // Usar setTimeout para garantir que o estado seja atualizado
+    setTimeout(() => {
+      this.alertaMensagem = mensagem;
+      this.alertaTipo = 'success';
+      this.alertaMostrar = true;
+      this.cdr.markForCheck();
+      
+      // Auto-fechar após 3 segundos
+      setTimeout(() => {
+        this.alertaMostrar = false;
+        this.cdr.markForCheck();
+      }, 3000);
+    }, 0);
   }
 }

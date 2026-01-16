@@ -4,6 +4,7 @@ export interface ProblemDetails {
   status?: number | null;
   detail?: string | null;
   instance?: string | null;
+  errors?: { [key: string]: string[] } | null;
   [key: string]: unknown;
 }
 

@@ -1,19 +1,21 @@
 import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AutoresService } from '../../core/services';
+import { HttpErrorResponse } from '@angular/common/http';
+import { AutoresService, ErrorHandlerService } from '../../core/services';
 import { AutorResponse, CriarAutorRequest, AtualizarAutorRequest } from '../../core/models';
-import { ConfirmModalComponent } from '../../shared/components';
+import { ConfirmModalComponent, AlertComponent } from '../../shared/components';
 import { finalize } from 'rxjs/operators';
 
 @Component({ 
   selector: 'app-autores',
   standalone: true,
-  imports: [CommonModule, FormsModule, ConfirmModalComponent],
+  imports: [CommonModule, FormsModule, ConfirmModalComponent, AlertComponent],
   templateUrl: './autores.component.html'
 })
 export class AutoresComponent implements OnInit {
   private autoresService = inject(AutoresService);
+  private errorHandler = inject(ErrorHandlerService);
   private cdr = inject(ChangeDetectorRef);
 
   autores: AutorResponse[] | null = null;
@@ -26,11 +28,17 @@ export class AutoresComponent implements OnInit {
   // Modal de formulário
   modalAberto = false;
   editando = false;
-  autorForm: CriarAutorRequest = { codigo: 0, nome: '' };
+  autorCodigo: number = 0; // Código do autor (usado apenas para edição)
+  autorForm: CriarAutorRequest = { nome: '' };
 
   // Modal de confirmação
   confirmModalAberto = false;
   codigoParaExcluir: number | null = null;
+
+  // Alertas
+  alertaMensagem: string = '';
+  alertaMostrar: boolean = false;
+  alertaTipo: 'success' | 'error' | 'warning' | 'info' = 'error';
 
   ngOnInit(): void { 
     this.carregarAutores();
@@ -52,21 +60,23 @@ export class AutoresComponent implements OnInit {
           this.totalCount = result.totalCount;
           this.totalPages = result.totalPages;
         },
-        error: (err) => {
-          console.error('Erro ao carregar autores:', err);
+        error: (err: HttpErrorResponse) => {
+          this.mostrarErro(err);
         }
       });
   }
 
   abrirModalNovo(): void {
     this.editando = false;
-    this.autorForm = { codigo: 0, nome: '' };
+    this.autorCodigo = 0;
+    this.autorForm = { nome: '' };
     this.modalAberto = true;
   }
 
   abrirModalEditar(autor: AutorResponse): void {
     this.editando = true;
-    this.autorForm = { codigo: autor.codigo, nome: autor.nome || '' };
+    this.autorCodigo = autor.codigo;
+    this.autorForm = { nome: autor.nome || '' };
     this.modalAberto = true;
   }
 
@@ -76,21 +86,26 @@ export class AutoresComponent implements OnInit {
 
   salvar(): void {
     if (this.editando) {
-      const request: AtualizarAutorRequest = this.autorForm;
+      const request: AtualizarAutorRequest = {
+        codigo: this.autorCodigo,
+        nome: this.autorForm.nome
+      };
       this.autoresService.atualizar(request).subscribe({
         next: () => {
+          this.mostrarSucesso('Autor atualizado com sucesso!');
           this.fecharModal();
           this.carregarAutores();
         },
-        error: (err) => console.error('Erro ao atualizar:', err)
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
       });
     } else {
       this.autoresService.criar(this.autorForm).subscribe({
         next: () => {
+          this.mostrarSucesso('Autor criado com sucesso!');
           this.fecharModal();
           this.carregarAutores();
         },
-        error: (err) => console.error('Erro ao criar:', err)
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
       });
     }
   }
@@ -109,12 +124,48 @@ export class AutoresComponent implements OnInit {
     if (this.codigoParaExcluir !== null) {
       this.autoresService.remover(this.codigoParaExcluir).subscribe({
         next: () => {
+          this.mostrarSucesso('Autor excluído com sucesso!');
           this.fecharConfirmModal();
           this.carregarAutores();
         },
-        error: (err) => console.error('Erro ao excluir:', err)
+        error: (err: HttpErrorResponse) => this.mostrarErro(err)
       });
     }
+  }
+
+  mostrarErro(error: HttpErrorResponse): void {
+    // Resetar estado antes de mostrar novo alerta
+    this.alertaMostrar = false;
+    this.cdr.markForCheck();
+    
+    // Usar setTimeout para garantir que o estado seja atualizado
+    setTimeout(() => {
+      const mensagens = this.errorHandler.extrairMensagensErro(error);
+      this.alertaMensagem = mensagens.join('\n');
+      this.alertaTipo = 'error';
+      this.alertaMostrar = true;
+      this.cdr.markForCheck();
+    }, 0);
+  }
+
+  mostrarSucesso(mensagem: string): void {
+    // Resetar estado antes de mostrar novo alerta
+    this.alertaMostrar = false;
+    this.cdr.markForCheck();
+    
+    // Usar setTimeout para garantir que o estado seja atualizado
+    setTimeout(() => {
+      this.alertaMensagem = mensagem;
+      this.alertaTipo = 'success';
+      this.alertaMostrar = true;
+      this.cdr.markForCheck();
+      
+      // Auto-fechar após 3 segundos
+      setTimeout(() => {
+        this.alertaMostrar = false;
+        this.cdr.markForCheck();
+      }, 3000);
+    }, 0);
   }
 
   paginaAnterior(): void {

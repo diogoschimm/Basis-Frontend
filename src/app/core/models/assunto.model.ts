@@ -4,7 +4,6 @@ export interface AssuntoResponse {
 }
 
 export interface CriarAssuntoRequest {
-  codigo: number;
   descricao: string;
 }
 
