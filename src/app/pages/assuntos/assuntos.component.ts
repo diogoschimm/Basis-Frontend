@@ -1,9 +1,10 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AssuntosService } from '../../core/services';
 import { AssuntoResponse, CriarAssuntoRequest, AtualizarAssuntoRequest } from '../../core/models';
 import { ConfirmModalComponent } from '../../shared/components';
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-assuntos',
@@ -13,12 +14,14 @@ import { ConfirmModalComponent } from '../../shared/components';
 })
 export class AssuntosComponent implements OnInit {
   private assuntosService = inject(AssuntosService);
+  private cdr = inject(ChangeDetectorRef);
 
-  assuntos: AssuntoResponse[] = [];
+  assuntos: AssuntoResponse[] | null = null;
   totalCount = 0;
   pageNumber = 1;
   pageSize = 10;
   totalPages = 0;
+  loading = true;
 
   // Modal de formulário
   modalAberto = false;
@@ -34,14 +37,23 @@ export class AssuntosComponent implements OnInit {
   }
 
   carregarAssuntos(): void {
-    this.assuntosService.listar(this.pageNumber, this.pageSize).subscribe({
-      next: (result) => {
-        this.assuntos = result.items || [];
-        this.totalCount = result.totalCount;
-        this.totalPages = result.totalPages;
-      },
-      error: (err) => console.error('Erro ao carregar assuntos:', err)
-    });
+    this.loading = true;
+    this.assuntosService.listar(this.pageNumber, this.pageSize)
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      ).subscribe({
+        next: (result) => {
+          this.assuntos = [...(result.items || [])];
+          this.totalCount = result.totalCount || 0;
+          this.totalPages = result.totalPages || 0;
+        },
+        error: (err) => {
+          console.error('Erro ao carregar assuntos:', err);
+        }
+      });
   }
 
   abrirModalNovo(): void {

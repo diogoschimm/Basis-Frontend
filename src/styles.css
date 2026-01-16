@@ -162,6 +162,29 @@ body {
   padding: 32px !important;
 }
 
+.loading {
+  text-align: center;
+  color: #495057;
+  padding: 32px !important;
+}
+
+.loading i {
+  margin-right: 8px;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Pagination */
 .pagination-controls {
   display: flex;

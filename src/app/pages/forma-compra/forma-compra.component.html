@@ -1,2 +1,99 @@
-<h1>Forma de Compra</h1>
+<div class="container">
+  <div class="page-header">
+    <h1>Formas de Compra</h1>
+    <button class="btn-primary" (click)="abrirModalNovo()">
+      <i class="bi bi-plus-lg"></i> Novo
+    </button>
+  </div>
 
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="column-id">Código</th>
+        <th>Descrição</th>
+        <th class="column-actions">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      @if (loading) {
+        <tr>
+          <td colspan="3" class="loading">
+            <i class="bi bi-arrow-repeat spinning"></i> Carregando...
+          </td>
+        </tr>
+      } @else {
+        @for (formaCompra of formasCompra; track formaCompra.codigo) {
+          <tr>
+            <td class="column-id">{{ formaCompra.codigo }}</td>
+            <td>{{ formaCompra.descricao }}</td>
+            <td>
+              <div class="actions">
+                <button class="btn-icon btn-edit" (click)="abrirModalEditar(formaCompra)" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn-icon btn-delete" (click)="abrirConfirmExcluir(formaCompra.codigo)" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="3" class="empty">Nenhuma forma de compra encontrada</td>
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+
+  <div class="pagination-controls">
+    <button [disabled]="pageNumber <= 1" (click)="paginaAnterior()">Anterior</button>
+    <span>Página {{ pageNumber }} de {{ totalPages }} ({{ totalCount }} registros)</span>
+    <button [disabled]="pageNumber >= totalPages" (click)="proximaPagina()">Próxima</button>
+  </div>
+</div>
+
+<app-confirm-modal
+  [aberto]="confirmModalAberto"
+  titulo="Excluir Forma de Compra"
+  mensagem="Deseja realmente remover este registro? Esta ação não pode ser desfeita."
+  (confirmar)="confirmarExclusao()"
+  (fechar)="fecharConfirmModal()"
+/>
+
+@if (modalAberto) {
+  <div class="modal-overlay" (click)="fecharModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <h2>{{ editando ? 'Editar' : 'Nova' }} Forma de Compra</h2>
+      <form (ngSubmit)="salvar()">
+        <div class="form-group">
+          <label for="codigo">Código</label>
+          <input 
+            type="number" 
+            id="codigo" 
+            [(ngModel)]="formaCompraForm.codigo" 
+            name="codigo"
+            [disabled]="editando"
+            required
+            min="1"
+          />
+        </div>
+        <div class="form-group">
+          <label for="descricao">Descrição</label>
+          <input 
+            type="text" 
+            id="descricao" 
+            [(ngModel)]="formaCompraForm.descricao" 
+            name="descricao"
+            required
+            maxlength="40"
+          />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="fecharModal()">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
