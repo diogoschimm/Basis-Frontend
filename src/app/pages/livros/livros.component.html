@@ -1,2 +1,333 @@
+<div class="container">
+    <div class="page-header">
 <h1>Livros</h1>
+        <button class="btn-primary" (click)="abrirFormularioNovo()">
+            <i class="bi bi-plus-lg"></i> Novo
+        </button>
+    </div>
 
+    @if (formularioAberto) {
+    <div class="form-section">
+        <div class="form-header">
+            <h2>{{ editando ? 'Editar' : 'Novo' }} Livro</h2>
+        </div>
+
+        <form (ngSubmit)="salvar()" class="inline-form">
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" [class.active]="abaAtiva === 'principal'" type="button"
+                        (click)="abaAtiva = 'principal'">
+                        Principal
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" [class.active]="abaAtiva === 'autores'" type="button"
+                        (click)="abaAtiva = 'autores'">
+                        Autores
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" [class.active]="abaAtiva === 'assuntos'" type="button"
+                        (click)="abaAtiva = 'assuntos'">
+                        Assuntos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" [class.active]="abaAtiva === 'formas-compra'" type="button"
+                        (click)="abaAtiva = 'formas-compra'">
+                        Formas de Compra
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <!-- Aba Principal -->
+                @if (abaAtiva === 'principal') {
+                <div class="tab-pane active">
+                    <div class="row mb-3">
+                        <div class="col-3">
+                            <div class="form-group">
+                                <label for="codigo">Código</label>
+                                <input type="number" id="codigo" [(ngModel)]="livroForm.codigo" name="codigo"
+                                    [disabled]="editando" required min="1" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="col-9">
+                            <div class="form-group">
+                                <label for="titulo">Título</label>
+                                <input type="text" id="titulo" [(ngModel)]="livroForm.titulo" name="titulo" required
+                                    maxlength="40" class="form-control" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editora">Editora</label>
+                            <input type="text" id="editora" [(ngModel)]="livroForm.editora" name="editora" required
+                                maxlength="40" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label for="edicao">Edição</label>
+                            <input type="number" id="edicao" [(ngModel)]="livroForm.edicao" name="edicao" required
+                                min="1" max="1000" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label for="anoPublicacao">Ano de Publicação</label>
+                            <input type="text" id="anoPublicacao" [(ngModel)]="livroForm.anoPublicacao"
+                                name="anoPublicacao" required pattern="^\d{4}$" maxlength="4" placeholder="YYYY"
+                                class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-cancel" (click)="fecharFormulario()">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar</button>
+                    </div>
+                </div>
+                }
+
+                <!-- Aba Autores -->
+                @if (abaAtiva === 'autores') {
+                <div class="tab-pane active">
+                    <div class="row mb-3">
+                        <div class="col-10">
+                            <div class="form-group">
+                                <label for="autorSelect">Autor</label>
+                                <select id="autorSelect" class="form-select" [(ngModel)]="autorSelecionadoTemp"
+                                    name="autorSelect">
+                                    <option [value]="null">Selecione um autor</option>
+                                    @for (autor of todosAutores; track autor.codigo) {
+                                    <option [value]="autor.codigo">{{ autor.nome }}</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <button type="button" class="btn-primary btn-icon w-100"  (click)="adicionarAutor()"
+                                    [disabled]="!autorSelecionadoTemp" title="Adicionar">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Autor</th>
+                                <th class="column-actions">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (autor of autoresAdicionados; track autor.codigo) {
+                            <tr>
+                                <td>{{ autor.nome }}</td>
+                                <td>
+                                    <div class="actions">
+                                        <button type="button" class="btn-icon btn-delete" (click)="removerAutor(autor.codigo)"
+                                            title="Remover">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            } @empty {
+                            <tr>
+                                <td colspan="2" class="empty">Nenhum autor adicionado</td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+
+                <!-- Aba Assuntos -->
+                @if (abaAtiva === 'assuntos') {
+                <div class="tab-pane active">
+                    <div class="row mb-3">
+                        <div class="col-10">
+                            <div class="form-group">
+                                <label for="assuntoSelect">Assunto</label>
+                                <select id="assuntoSelect" class="form-select" [(ngModel)]="assuntoSelecionadoTemp"
+                                    name="assuntoSelect">
+                                    <option [value]="null">Selecione um assunto</option>
+                                    @for (assunto of todosAssuntos; track assunto.codigo) {
+                                    <option [value]="assunto.codigo">{{ assunto.descricao }}</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <button type="button" class="btn-primary btn-icon w-100" (click)="adicionarAssunto()"
+                                    [disabled]="!assuntoSelecionadoTemp" title="Adicionar">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Assunto</th>
+                                <th class="column-actions">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (assunto of assuntosAdicionados; track assunto.codigo) {
+                            <tr>
+                                <td>{{ assunto.descricao }}</td>
+                                <td>
+                                    <div class="actions">
+                                        <button type="button" class="btn-icon btn-delete"
+                                            (click)="removerAssunto(assunto.codigo)" title="Remover">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            } @empty {
+                            <tr>
+                                <td colspan="2" class="empty">Nenhum assunto adicionado</td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+
+                <!-- Aba Formas de Compra -->
+                @if (abaAtiva === 'formas-compra') {
+                <div class="tab-pane active">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="formaCompraSelect">Forma de Compra</label>
+                                <select id="formaCompraSelect" class="form-select" [(ngModel)]="formaCompraSelecionada"
+                                    name="formaCompraSelect">
+                                    <option [value]="null">Selecione uma forma de compra</option>
+                                    @for (forma of todasFormasCompra; track forma.codigo) {
+                                    <option [value]="forma.codigo">{{ forma.descricao }}</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="form-group">
+                                <label for="valorCompra">Valor</label>
+                                <input type="number" id="valorCompra" class="form-control" [(ngModel)]="valorCompra"
+                                    name="valorCompra" step="0.01" min="0.01" placeholder="0.00" />
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <button type="button" class="btn-primary btn-icon w-100" 
+                                    (click)="adicionarFormaCompra()"
+                                    [disabled]="!formaCompraSelecionada || valorCompra <= 0" title="Adicionar">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Forma de Compra</th>
+                                <th>Valor</th>
+                                <th class="column-actions">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (forma of formasCompraAdicionadas; track forma.formaCompraCodigo) {
+                            <tr>
+                                <td>{{ forma.descricao }}</td>
+                                <td>R$ {{ forma.valorCompra.toFixed(2) }}</td>
+                                <td>
+                                    <div class="actions">
+                                        <button type="button" class="btn-icon btn-delete"
+                                            (click)="removerFormaCompra(forma.formaCompraCodigo)" title="Remover">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            } @empty {
+                            <tr>
+                                <td colspan="3" class="empty">Nenhuma forma de compra adicionada</td>
+                            </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                }
+            </div>
+        </form>
+    </div>
+    }
+
+    @if (!formularioAberto) {
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th class="column-id">Código</th>
+                <th>Título</th>
+                <th>Editora</th>
+                <th>Edição</th>
+                <th>Ano Publicação</th>
+                <th class="column-actions">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (loading) {
+            <tr>
+                <td colspan="6" class="loading">
+                    <i class="bi bi-arrow-repeat spinning"></i> Carregando...
+                </td>
+            </tr>
+            } @else {
+            @for (livro of livros; track livro.codigo) {
+            <tr>
+                <td class="column-id">{{ livro.codigo }}</td>
+                <td>{{ livro.titulo }}</td>
+                <td>{{ livro.editora }}</td>
+                <td>{{ livro.edicao }}</td>
+                <td>{{ livro.anoPublicacao }}</td>
+                <td>
+                    <div class="actions">
+                        <button class="btn-icon btn-edit" (click)="abrirFormularioEditar(livro)" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn-icon btn-delete" (click)="abrirConfirmExcluir(livro.codigo)" title="Excluir">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            } @empty {
+            <tr>
+                <td colspan="6" class="empty">Nenhum livro encontrado</td>
+            </tr>
+            }
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination-controls">
+        <button [disabled]="pageNumber <= 1" (click)="paginaAnterior()">Anterior</button>
+        <span>Página {{ pageNumber }} de {{ totalPages }} ({{ totalCount }} registros)</span>
+        <button [disabled]="pageNumber >= totalPages" (click)="proximaPagina()">Próxima</button>
+    </div>
+    }
+</div>
+
+<app-confirm-modal [aberto]="confirmModalAberto" titulo="Excluir Livro"
+    mensagem="Deseja realmente remover este registro? Esta ação não pode ser desfeita."
+    (confirmar)="confirmarExclusao()" (fechar)="fecharConfirmModal()" />

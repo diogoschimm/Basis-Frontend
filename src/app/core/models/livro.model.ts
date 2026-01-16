@@ -1,4 +1,6 @@
 import { FormaCompraItemRequest } from './forma-compra.model';
+import { AutorResponse } from './autor.model';
+import { AssuntoResponse } from './assunto.model';
 
 export interface LivroResponse {
   codigo: number;
@@ -6,6 +8,9 @@ export interface LivroResponse {
   editora: string | null;
   edicao: number;
   anoPublicacao: string | null;
+  autores?: AutorResponse[] | null;
+  assuntos?: AssuntoResponse[] | null;
+  formasCompra?: Array<{ formaCompraCodigo: number; valorCompra: number; descricao?: string | null }> | null;
 }
 
 export interface CriarLivroRequest {
